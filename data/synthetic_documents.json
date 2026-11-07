@@ -1,0 +1,57 @@
+[
+  {
+    "id": "SYN-001",
+    "text": "Invoice: INV-2041\nType: purchase\nDate: 2026-10-03\nVendor: Northwind Cloud\nCategory: software\nTotal: 480.00\nStatus: unpaid\nDescription: Monthly hosting for n8n workflows",
+    "expect": "pending"
+  },
+  {
+    "id": "SYN-002",
+    "text": "Invoice: INV-2042\nType: purchase\nDate: 2026-10-05\nVendor: Staples\nCategory: office\nTotal: 132.50\nStatus: paid\nDescription: Printer paper and toner",
+    "expect": "pending"
+  },
+  {
+    "id": "SYN-003",
+    "text": "Invoice: INV-2043\nType: purchase\nDate: 2026-10-09\nVendor: Delta Air\nCategory: travel\nTotal: 1,875.20\nStatus: unpaid\nDescription: Client site visit flights",
+    "expect": "pending"
+  },
+  {
+    "id": "SYN-004",
+    "text": "Invoice: INV-2044\nType: purchase\nDate: 2026-10-12\nVendor: Harper & Lee LLP\nCategory: legal\nTotal: 3200.00\nStatus: unpaid\nDescription: Contract review retainer",
+    "expect": "pending"
+  },
+  {
+    "id": "SYN-005",
+    "text": "Invoice: SI-7001\nType: sales\nDate: 2026-10-15\nVendor: Acme Retail\nTotal: 9000.00\nStatus: unpaid\nDescription: Q4 forecasting service",
+    "expect": "pending"
+  },
+  {
+    "id": "SYN-006",
+    "text": "Invoice: INV-2045\nType: purchase\nDate: 2026-10-16\nVendor: Brightline Ads\nCategory: marketing\nTotal: 750.00\nStatus: unpaid\nDescription: Paid LinkedIn campaign",
+    "expect": "needs_review"
+  },
+  {
+    "id": "SYN-007",
+    "text": "Invoice: INV-2046\nType: purchase\nDate: 2026-10-18\nVendor: Northwind Cloud\nCategory: software\nTotal: -50.00\nStatus: paid\nDescription: Credit note for duplicate charge",
+    "expect": "needs_review"
+  },
+  {
+    "id": "SYN-008",
+    "text": "Invoice: INV-2047\nType: purchase\nDate: 2026-10-19\nVendor: Staples\nCategory: office\nTotal: 0.00\nStatus: paid\nDescription: Zero-value order placeholder",
+    "expect": "needs_review"
+  },
+  {
+    "id": "SYN-009",
+    "text": "Invoice: INV-2048\nType: purchase\nDate: 2026-13-40\nVendor: Staples\nCategory: office\nTotal: 20.00\nStatus: paid\nDescription: Pens and notebooks",
+    "expect": "needs_review"
+  },
+  {
+    "id": "SYN-010",
+    "text": "Invoice: INV-2049\nType: purchase\nDate: 2026-10-22\nVendor: Unknown Vendor\nCategory: software\nStatus: unpaid\nDescription: Invoice with no total printed",
+    "expect": "error"
+  },
+  {
+    "id": "SYN-011",
+    "text": "Invoice: INV-2050\nType: purchase\nDate: 2026-10-23\nVendor: Scanned Vendor\nCategory: travel\nTotal: twelve dollars\nStatus: unpaid\nDescription: OCR could not read the amount",
+    "expect": "error"
+  }
+]

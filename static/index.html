@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Journal Entry Agent</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #f5f6f8; color: #1d2330; }
+  header { background: #1d2330; color: #fff; padding: 16px 24px; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; font-size: 13px; opacity: .75; }
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px 24px; }
+  section { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  textarea { width: 100%; height: 220px; box-sizing: border-box; font-family: ui-monospace, Menlo, monospace; font-size: 13px; padding: 10px; border: 1px solid #d0d4dc; border-radius: 6px; }
+  button { background: #2b6cb0; color: #fff; border: 0; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; margin: 4px 4px 4px 0; }
+  button.secondary { background: #e2e6ee; color: #1d2330; }
+  button.ok { background: #2f855a; }
+  button.bad { background: #c53030; }
+  button:disabled { opacity: .4; cursor: default; }
+  .samples { margin-bottom: 10px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .pending { background: #e6f0ff; color: #2b6cb0; }
+  .needs_review { background: #fef3c7; color: #92400e; }
+  .approved { background: #c6f6d5; color: #276749; }
+  .rejected { background: #fed7d7; color: #9b2c2c; }
+  .entry { border: 1px solid #e2e6ee; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+  .entry-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+  td, th { text-align: left; padding: 4px 6px; border-bottom: 1px solid #eef0f4; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .issues { color: #9b2c2c; font-size: 13px; margin: 6px 0 0; padding-left: 18px; }
+  .error { color: #9b2c2c; font-size: 13px; margin-top: 8px; }
+  .muted { color: #6b7280; font-size: 13px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Journal Entry Agent</h1>
+  <p>Paste a source document, get a proposed journal entry, and approve only after deterministic checks pass.</p>
+</header>
+<main>
+  <section>
+    <h2>1. Source document</h2>
+    <div class="samples" id="samples"></div>
+    <textarea id="doc" placeholder="Invoice: INV-2041&#10;Date: 2026-10-03&#10;Vendor: ...&#10;Category: software&#10;Total: 480.00&#10;Status: unpaid&#10;Description: ..."></textarea>
+    <div>
+      <button id="propose">Propose entry</button>
+      <span class="muted">Fields: Date, Total, Description (required); Vendor, Category, Status, Type, Invoice (optional)</span>
+    </div>
+    <div class="error" id="proposeError"></div>
+  </section>
+
+  <section>
+    <h2>2. Proposed entries</h2>
+    <div id="entries"><p class="muted">No entries yet.</p></div>
+  </section>
+</main>
+
+<script>
+const fmt = (v) => Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+async function api(path, options = {}) {
+  const res = await fetch(path, { headers: { "Content-Type": "application/json" }, ...options });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.detail || `Request failed (${res.status})`);
+  return body;
+}
+
+async function loadSamples() {
+  const samples = await api("/api/samples");
+  const box = document.getElementById("samples");
+  box.innerHTML = "<span class='muted'>Synthetic samples: </span>";
+  samples.forEach(s => {
+    const b = document.createElement("button");
+    b.className = "secondary";
+    b.textContent = s.id;
+    b.onclick = () => { document.getElementById("doc").value = s.text; };
+    box.appendChild(b);
+  });
+}
+
+function entryCard(e) {
+  const rows = e.lines.map(l => `
+    <tr>
+      <td>${esc(l.account)}</td>
+      <td>${esc(l.memo)}</td>
+      <td class="num">${Number(l.debit) ? fmt(l.debit) : ""}</td>
+      <td class="num">${Number(l.credit) ? fmt(l.credit) : ""}</td>
+    </tr>`).join("");
+  const issues = e.issues.length
+    ? `<ul class="issues">${e.issues.map(i => `<li>${esc(i)}</li>`).join("")}</ul>` : "";
+  const canDecide = e.status === "pending" || e.status === "needs_review";
+  const approveDisabled = e.status !== "pending" ? "disabled" : "";
+  return `
+    <div class="entry">
+      <div class="entry-head">
+        <strong>${esc(e.description)}</strong>
+        <span class="badge ${e.status}">${e.status.replace("_", " ")}</span>
+      </div>
+      <div class="muted">${esc(e.date)} · ref ${esc(e.source_ref || "n/a")} · id ${esc(e.id)}</div>
+      <table>
+        <tr><th>Account</th><th>Memo</th><th class="num">Debit</th><th class="num">Credit</th></tr>
+        ${rows}
+      </table>
+      ${issues}
+      ${canDecide ? `
+        <div style="margin-top:8px">
+          <button class="ok" ${approveDisabled} onclick="decide('${e.id}','approve')">Approve</button>
+          <button class="bad" onclick="decide('${e.id}','reject')">Reject</button>
+        </div>` : ""}
+    </div>`;
+}
+
+async function refresh() {
+  const list = await api("/api/entries");
+  const box = document.getElementById("entries");
+  box.innerHTML = list.length
+    ? list.slice().reverse().map(entryCard).join("")
+    : "<p class='muted'>No entries yet.</p>";
+}
+
+async function decide(id, action) {
+  try {
+    await api(`/api/entries/${id}/${action}`, { method: "POST" });
+  } catch (err) {
+    alert(err.message);
+  }
+  refresh();
+}
+
+document.getElementById("propose").onclick = async () => {
+  const err = document.getElementById("proposeError");
+  err.textContent = "";
+  try {
+    await api("/api/propose", { method: "POST", body: JSON.stringify({ document: document.getElementById("doc").value }) });
+    refresh();
+  } catch (e) {
+    err.textContent = e.message;
+  }
+};
+
+loadSamples();
+refresh();
+</script>
+</body>
+</html>
