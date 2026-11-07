@@ -100,3 +100,26 @@ def test_model_can_be_overridden(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-x")
     monkeypatch.setenv("OPENAI_MODEL", "gpt-5.6-luna")
     assert openai_config_from_env().model == "gpt-5.6-luna"
+
+
+def test_groq_config_from_env_uses_groq_endpoint_and_label(monkeypatch):
+    from app.llm_proposer import GROQ_URL, groq_config_from_env
+
+    monkeypatch.setenv("GROQ_API_KEY", "gsk-x")
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
+    config = groq_config_from_env()
+    assert config is not None
+    assert config.url == GROQ_URL
+    assert config.label == "groq"
+    assert config.model == "openai/gpt-oss-20b"
+
+
+def test_groq_proposal_is_labelled_groq_and_calls_groq_endpoint():
+    from app.llm_proposer import GROQ_URL, OpenAIConfig
+
+    seen: list[httpx.Request] = []
+    groq = OpenAIConfig(api_key="gsk-test", model="openai/gpt-oss-20b", url=GROQ_URL, label="groq", reasoning_effort="low")
+    entry, _ = propose_with_openai(DOC, groq, transport=fake_transport(GOOD, seen=seen))
+    assert entry.proposed_by == "groq:openai/gpt-oss-20b"
+    assert str(seen[0].url) == GROQ_URL
+    assert json.loads(seen[0].content)["reasoning_effort"] == "low"

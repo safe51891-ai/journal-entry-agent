@@ -68,12 +68,19 @@ def azure_config_from_env() -> AzureConfig | None:
 
 DEFAULT_OPENAI_MODEL = "gpt-6-luna"  # lowest-cost current OpenAI text model; see README
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"  # lowest-cost usable text model on Groq (see README)
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 
 @dataclass(frozen=True)
 class OpenAIConfig:
+    """Any OpenAI-compatible chat endpoint: the OpenAI platform or Groq."""
+
     api_key: str
     model: str = DEFAULT_OPENAI_MODEL
+    url: str = OPENAI_URL
+    label: str = "openai"  # written to proposed_by, e.g. "openai:gpt-6-luna"
+    reasoning_effort: str = "none"  # cheapest setting; hidden reasoning tokens are billed as output
 
 
 def openai_config_from_env() -> OpenAIConfig | None:
@@ -81,6 +88,19 @@ def openai_config_from_env() -> OpenAIConfig | None:
     if not api_key:
         return None
     return OpenAIConfig(api_key=api_key, model=os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL).strip())
+
+
+def groq_config_from_env() -> OpenAIConfig | None:
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not api_key:
+        return None
+    return OpenAIConfig(
+        api_key=api_key,
+        model=os.getenv("GROQ_MODEL", DEFAULT_GROQ_MODEL).strip(),
+        url=GROQ_URL,
+        label="groq",
+        reasoning_effort="low",
+    )
 
 
 def _call_openai(document: str, config: OpenAIConfig, transport: httpx.BaseTransport | None) -> dict:
@@ -91,26 +111,26 @@ def _call_openai(document: str, config: OpenAIConfig, transport: httpx.BaseTrans
             {"role": "user", "content": document},
         ],
         "response_format": {"type": "json_object"},
-        # Cheapest setting: no hidden reasoning tokens, which are billed as output.
-        "reasoning_effort": "none",
+        "reasoning_effort": config.reasoning_effort,
     }
+    provider = "Groq" if config.label == "groq" else "OpenAI"
     try:
         with httpx.Client(timeout=30, transport=transport) as client:
             response = client.post(
-                OPENAI_URL,
+                config.url,
                 headers={"Authorization": f"Bearer {config.api_key}"},
                 json=body,
             )
     except httpx.HTTPError as exc:
-        raise LLMError(f"could not reach OpenAI: {exc.__class__.__name__}") from exc
+        raise LLMError(f"could not reach {provider}: {exc.__class__.__name__}") from exc
 
     if response.status_code >= 400:
-        raise LLMError(f"OpenAI returned HTTP {response.status_code}")
+        raise LLMError(f"{provider} returned HTTP {response.status_code}")
     try:
         content = response.json()["choices"][0]["message"]["content"]
         return json.loads(content)
     except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-        raise LLMError("OpenAI returned an unexpected response") from exc
+        raise LLMError(f"{provider} returned an unexpected response") from exc
 
 
 def propose_with_openai(
@@ -118,9 +138,9 @@ def propose_with_openai(
     config: OpenAIConfig,
     transport: httpx.BaseTransport | None = None,
 ) -> tuple[JournalEntry, list[str]]:
-    """Same contract as propose_with_llm, using the OpenAI platform API."""
+    """Same contract as propose_with_llm, using an OpenAI-compatible endpoint."""
     data = _call_openai(document, config, transport)
-    return entry_from_model_output(document, data, f"openai:{config.model}")
+    return entry_from_model_output(document, data, f"{config.label}:{config.model}")
 
 
 def _document_amounts(document: str) -> set[Decimal]:

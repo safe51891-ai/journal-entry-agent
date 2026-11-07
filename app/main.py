@@ -10,6 +10,7 @@ from .ledger import CHART, validate
 from .llm_proposer import (
     LLMError,
     azure_config_from_env,
+    groq_config_from_env,
     openai_config_from_env,
     propose_with_llm,
     propose_with_openai,
@@ -44,6 +45,9 @@ def config() -> dict[str, str]:
     openai = openai_config_from_env()
     if openai:
         return {"proposer": f"openai:{openai.model}"}
+    groq = groq_config_from_env()
+    if groq:
+        return {"proposer": f"groq:{groq.model}"}
     azure = azure_config_from_env()
     return {"proposer": f"azure-openai:{azure.deployment}" if azure else "rules"}
 
@@ -58,10 +62,13 @@ def samples() -> list[dict[str, str]]:
 def propose(request: ProposeRequest) -> JournalEntry:
     extra_issues: list[str] = []
     openai = openai_config_from_env()
+    groq = groq_config_from_env()
     azure = azure_config_from_env()
     try:
         if openai:
             entry, extra_issues = propose_with_openai(request.document, openai)
+        elif groq:
+            entry, extra_issues = propose_with_openai(request.document, groq)
         elif azure:
             entry, extra_issues = propose_with_llm(request.document, azure)
         else:

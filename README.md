@@ -44,7 +44,13 @@ The app can use an LLM to read the source document. It is optional. Without a ke
 
 `.env` is git-ignored, so the key stays out of the repo. Do not paste the key into any file that is committed. Check which proposer is active at http://127.0.0.1:8000/api/config (returns `rules`, `openai:gpt-6-luna`, or `azure-openai:<deployment>`). The key is never returned by the API.
 
-Priority: OpenAI if `OPENAI_API_KEY` is set, then Azure OpenAI if its three variables are set, then rules.
+### Groq (free-tier option, used in this repo's live tests)
+
+Groq serves an OpenAI-compatible API. Set `GROQ_API_KEY` in `.env` (create one at https://console.groq.com/keys). `GROQ_MODEL` defaults to `openai/gpt-oss-20b`, the lowest-cost usable text model on Groq's model list at the time of writing ($0.075 input and $0.30 output per 1M tokens). `llama-3.1-8b-instant` is not on the current list, so do not use it.
+
+Priority: OpenAI if `OPENAI_API_KEY` is set, then Groq if `GROQ_API_KEY` is set, then Azure OpenAI if its three variables are set, then rules.
+
+Live results with Groq (`openai/gpt-oss-20b`) on this repo's 19 test documents (11 synthetic plus 8 new): 14 of 19 matched the expected outcome. The misses were model answers, not check failures: the model returned an error instead of a draft for an unmapped category (SYN-006, NEW-05) and for invalid dates (SYN-009, NEW-06), and it said there was no account for `consulting` (NEW-04). In one case (SYN-007) the model invented an amount of 50.00 that is not in the document, and the guardrail flagged it. Those results are from one run, so expect some variation.
 
 ### What the LLM does
 
@@ -57,7 +63,7 @@ The LLM only reads the document and fills in a draft entry. It does not decide a
    - `ledger.validate` runs on the result, exactly as for the rule-based proposer.
 4. Amounts are handled as `Decimal` in code, never by the model. An entry the model gets wrong is marked `needs_review` and cannot be approved. A person still clicks Approve.
 
-Each entry records its proposer in `proposed_by`: `rules`, `openai:<model>`, or `azure-openai:<deployment>`.
+Each entry records its proposer in `proposed_by`: `rules`, `openai:<model>`, `groq:<model>`, or `azure-openai:<deployment>`.
 
 ### Model and cost
 
@@ -75,7 +81,7 @@ Set `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_DEPLOYMENT
 
 ```bash
 source .venv/bin/activate
-python -m pytest -q          # 49 tests: ledger rules, rule and LLM proposers, API, every synthetic sample
+python -m pytest -q          # 51 tests: ledger rules, rule and LLM proposers, API, every synthetic sample
 python scripts/evaluate.py   # PASS/FAIL table and accuracy over the synthetic set (rule-based)
 ```
 
